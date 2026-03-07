@@ -305,7 +305,7 @@ python main.py
 python --version
 
 # 2. Клонировать репозиторий
-git clone <repo-url>
+git clone https://github.com/Ilyouha852/leak_scanner.git
 cd leak-scanner
 
 # 3. Создать виртуальное окружение
