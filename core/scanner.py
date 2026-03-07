@@ -26,9 +26,7 @@ class Scanner:
         project_path: Path,
         progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> tuple[list[LeakResult], int]:
-        """
-        Сканирует проект и возвращает (список утечек, количество просканированных файлов).
-        """
+        """Сканирует проект и возвращает (утечки, число просканированных файлов)."""
         files = self.file_collector.collect_files(project_path)
         total = len(files)
         results: list[LeakResult] = []
@@ -59,16 +57,41 @@ class Scanner:
                         file_path=str(file_path),
                         line_number=line_number,
                     )
+                    entropy_hits = self._drop_entropy_overlaps(regex_hits, entropy_hits)
 
                     for hit in [*regex_hits, *entropy_hits]:
                         hit.risk_level = self.context_analyzer.adjust_risk(
-                            hit.risk_level, line_clean
+                            hit.risk_level,
+                            line_clean,
                         )
                         findings.append(hit)
         except OSError:
             return findings
 
         return findings
+
+    @staticmethod
+    def _drop_entropy_overlaps(
+        regex_hits: list[LeakResult],
+        entropy_hits: list[LeakResult],
+    ) -> list[LeakResult]:
+        """Удаляет entropy-находки, которые дублируют или пересекают regex-находки."""
+        if not regex_hits:
+            return entropy_hits
+
+        regex_fragments = [item.code_fragment for item in regex_hits]
+        filtered: list[LeakResult] = []
+
+        for entropy_item in entropy_hits:
+            overlaps = any(
+                entropy_item.code_fragment in regex_fragment
+                or regex_fragment in entropy_item.code_fragment
+                for regex_fragment in regex_fragments
+            )
+            if not overlaps:
+                filtered.append(entropy_item)
+
+        return filtered
 
     @staticmethod
     def _deduplicate(results: list[LeakResult]) -> list[LeakResult]:
