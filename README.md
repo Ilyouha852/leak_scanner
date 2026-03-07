@@ -1,0 +1,576 @@
+# Leak Scanner — Сканер утечек информации в исходном коде
+
+## 1. Введение
+
+### Цель проекта
+
+**Leak Scanner** — это настольное приложение для автоматического выявления утечек конфиденциальной информации в исходном коде и конфигурационных файлах. Приложение разработано как участие в хакатоне и предназначено для обеспечения информационной безопасности при разработке программного обеспечения.
+
+Основная задача: помочь разработчикам и security-специалистам обнаружить и исправить утечки секретов, таких как API ключи, пароли, токены доступа, закрытые ключи, строки подключения к БД и другие чувствительные данные, которые могут быть случайно зафиксированы в системе контроля версий.
+
+### Проблема, которую решает проект
+
+1. **Человеческий фактор** — разработчики часто случайно коммитят секреты в Git, забывают скрыть их в `.gitignore`, или прямо пишут учетные данные в коде.
+
+2. **Отсутствие автоматизации** — без специализированного инструмента невозможно быстро проверить весь проект на предмет утечек.
+
+3. **Множество форматов** — секреты могут быть в Python, JavaScript, Java, конфигах (`.env`, YAML, JSON) и требуют разных подходов к поиску.
+
+4. **Высокая скорость разработки** — при частых деплойментах и CI/CD сложно контролировать попадание секретов вручную.
+
+5. **Необходимость в контексте** — не все совпадения с паттернами являются реальными утечками; нужен анализ контекста, чтобы избежать ложных срабатываний.
+
+**Leak Scanner** решает эти проблемы через:
+- Комбинированный анализ (regex-паттерны + энтропия + контекст)
+- Поддержку множества языков и форматов файлов
+- Интеграцию с локальной LLM (Ollama) для получения рекомендаций по исправлению
+- Экспорт результатов в PDF, JSON, YAML
+- Простой и интуитивный GUI (PySide6/Qt)
+
+---
+
+## 2. Архитектура проекта
+
+### PlantUML диаграмма классов
+
+```plantuml
+@startuml LeakScannerArchitecture
+
+skinparam backgroundColor #FEFEFE
+skinparam classBackgroundColor #E1F5FE
+skinparam classBorderColor #0277BD
+
+package "UI Layer" {
+    class MainWindow {
+        -selected_folder: Path
+        -last_scan_results: List[LeakResult]
+        -last_scanned_files: int
+        -project_detector: ProjectDetector
+        -scanner: Scanner
+        -report_builder: ReportBuilder
+        --
+        +select_folder(): void
+        +start_scan(): void
+        +create_report(): void
+        -_setup_ui(): void
+    }
+
+    class ScanView {
+        -parent: MainWindow
+        -_current_project_path: str
+        --
+        +append_log(msg: str): void
+        +display_results(leaks, project_path): void
+        +clear(): void
+    }
+
+    MainWindow --> ScanView
+}
+
+package "Core Logic" {
+    class Scanner {
+        -file_collector: FileCollector
+        -regex_detector: RegexDetector
+        -entropy_detector: EntropyDetector
+        -context_analyzer: ContextAnalyzer
+        --
+        +scan_project(project_path, progress_callback): (List[LeakResult], int)
+        +scan_file(file_path): List[LeakResult]
+        -_drop_entropy_overlaps(regex_hits, entropy_hits): List[LeakResult]
+        -_deduplicate(results): List[LeakResult]
+    }
+
+    class FileCollector {
+        +IGNORED_DIRS: Set[str]
+        +SCANNED_EXTENSIONS: Set[str]
+        --
+        +collect_files(root_path: Path): List[Path]
+        -_is_in_ignored_dir(path): bool
+        -_is_scannable(path): bool
+    }
+
+    class ProjectDetector {
+        +MARKER_FILES: Set[str]
+        +SOURCE_EXTENSIONS: Set[str]
+        --
+        +is_project(folder_path): bool
+    }
+
+    class ContextAnalyzer {
+        +LOW_RISK_WORDS: Set[str]
+        --
+        +analyze_context(line): Dict[str, bool]
+        +adjust_risk(risk_level, line): str
+        -_is_comment_line(line): bool
+    }
+
+    class EntropyCalculator {
+        --
+        +calculate_entropy(text): float
+    }
+
+    Scanner --> FileCollector
+    Scanner --> ContextAnalyzer
+    Scanner --> EntropyCalculator
+}
+
+package "Detection" {
+    class RegexDetector {
+        +ENV_REFERENCE_PATTERNS: Tuple[Pattern]
+        +PLACEHOLDER_VALUE_RE: Pattern
+        +TS_TYPE_KEYWORDS: Set[str]
+        --
+        +detect(line, file_path, line_number): List[LeakResult]
+        -_build_leak_result(secret_name, risk, match, ...): LeakResult|None
+        -_is_non_secret_value(value, variable_name, ...): bool
+    }
+
+    class EntropyDetector {
+        +MIN_LENGTH: int
+        +MIN_ENTROPY: float
+        +TOKEN_PATTERN: Pattern
+        -entropy_calculator: EntropyCalculator
+        --
+        +detect(line, file_path, line_number): List[LeakResult]
+    }
+
+    Scanner --> RegexDetector
+    Scanner --> EntropyDetector
+}
+
+package "Models" {
+    class LeakResult {
+        +file_path: str
+        +line_number: int
+        +code_fragment: str
+        +secret_type: str
+        +risk_level: str
+        +detector_type: str
+        --
+        +to_dict(): Dict
+    }
+
+    RegexDetector --> LeakResult
+    EntropyDetector --> LeakResult
+    Scanner --> LeakResult
+}
+
+package "LLM Integration" {
+    class OllamaClient {
+        +API_URL: str
+        +MODEL: str
+        --
+        +generate_recommendations(leaks): str
+    }
+
+    ReportBuilder --> OllamaClient
+}
+
+package "Report Export" {
+    class ReportBuilder {
+        -ollama_client: OllamaClient
+        --
+        +build_report(project_path, leaks, scanned_files): Dict
+    }
+
+    class JSONExporter {
+        --
+        +export(report_data, output_path): void
+    }
+
+    class YAMLExporter {
+        --
+        +export(report_data, output_path): void
+    }
+
+    class PDFExporter {
+        --
+        +export(report_data, output_path): void
+    }
+
+    ReportBuilder --> JSONExporter
+    ReportBuilder --> YAMLExporter
+    ReportBuilder --> PDFExporter
+    MainWindow --> ReportBuilder
+}
+
+@enduml
+```
+
+### Архитектурные слои
+
+1. **UI Layer (Слой интерфейса)**
+   - `MainWindow` — главное окно приложения
+   - `ScanView` — виджет отображения результатов и логов
+   - Управление потоком взаимодействия пользователя
+
+2. **Core Logic (Бизнес-логика)**
+   - `Scanner` — оркестратор сканирования, координирует все детекторы
+   - `FileCollector` — сбор файлов проекта с фильтрацией
+   - `ProjectDetector` — определение, является ли папка проектом
+   - `ContextAnalyzer` — анализ контекста для снижения false positives
+   - `EntropyCalculator` — расчет энтропии Шеннона
+
+3. **Detection (Детекция)**
+   - `RegexDetector` — поиск по регулярным выражениям известных типов секретов
+   - `EntropyDetector` — поиск высокоэнтропийных токенов
+
+4. **Models (Модели данных)**
+   - `LeakResult` — структура найденной утечки
+
+5. **LLM Integration (Интеграция с LLM)**
+   - `OllamaClient` — генерация рекомендаций через локальную Ollama
+
+6. **Report Export (Экспорт отчетов)**
+   - `ReportBuilder` — формирование структуры отчета
+   - `JSONExporter`, `YAMLExporter`, `PDFExporter` — экспортеры в разные форматы
+
+---
+
+## 3. Спецификация файлов проекта
+
+### Модели данных
+
+#### LeakResult (`models/leak_result.py`)
+
+| Поле | Тип | Описание |
+|------|-----|---------|
+| `file_path` | `str` | Полный путь к файлу, где найдена утечка |
+| `line_number` | `int` | Номер строки в файле |
+| `code_fragment` | `str` | Фрагмент кода (до 200 символов), содержащий утечку |
+| `secret_type` | `str` | Тип секрета (e.g., "Password", "AWS Access Key", "High entropy string") |
+| `risk_level` | `str` | Уровень риска ("high", "medium", "low") |
+| `detector_type` | `str` | Тип детектора, который нашел утечку ("regex" или "entropy") |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `to_dict()` | - | `Dict` | Преобразует объект в словарь для сериализации |
+
+---
+
+### Интерфейс (UI)
+
+#### MainWindow (`ui/main_window.py`)
+
+| Атрибут | Тип | Описание |
+|---------|-----|---------|
+| `selected_folder` | `Path \| None` | Выбранная пользователем папка проекта |
+| `last_scan_results` | `List[LeakResult]` | Результаты последнего сканирования |
+| `last_scanned_files` | `int` | Количество файлов, отсканированных в последний раз |
+| `project_detector` | `ProjectDetector` | Инстанс для определения проектов |
+| `scanner` | `Scanner` | Инстанс основного сканера |
+| `report_builder` | `ReportBuilder` | Инстанс для построения отчетов |
+| `scan_view` | `ScanView` | Виджет отображения результатов |
+
+| Метод | Параметры | Описание |
+|--------|-----------|---------|
+| `select_folder()` | - | Открывает диалог выбора папки проекта |
+| `start_scan()` | - | Запускает сканирование выбранной папки |
+| `create_report()` | - | Создает отчет в выбранном формате (PDF/JSON/YAML) |
+| `_setup_ui()` | - | Инициализирует UI компоненты |
+| `_on_scan_progress(current, total, file)` | `int, int, str` | Callback для обновления прогресса сканирования |
+
+#### ScanView (`ui/scan_view.py`)
+
+| Метод | Параметры | Описание |
+|--------|-----------|---------|
+| `append_log(message)` | `str` | Добавляет сообщение в лог-окно |
+| `display_results(leaks, project_path)` | `List[LeakResult], str` | Отображает результаты сканирования в таблице |
+| `clear()` | - | Очищает лог и таблицу результатов |
+| `_open_file_in_ide(file_path, line_number, ide_name)` | `str, int, str` | Открывает файл в указанной IDE (VS Code, PyCharm и т.д.) |
+
+---
+
+### Основная логика
+
+#### Scanner (`core/scanner.py`)
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `scan_project()` | `project_path: Path`, `progress_callback: Callable \| None` | `(List[LeakResult], int)` | Сканирует весь проект, возвращает утечки и количество файлов |
+| `scan_file()` | `file_path: Path` | `List[LeakResult]` | Сканирует один файл, применяя все детекторы |
+| `_drop_entropy_overlaps()` | `regex_hits, entropy_hits` | `List[LeakResult]` | Удаляет дубликаты между regex и entropy находками |
+| `_deduplicate()` | `results: List[LeakResult]` | `List[LeakResult]` | Удаляет дубликаты в результатах |
+
+#### FileCollector (`core/file_collector.py`)
+
+| Атрибут (класс) | Значение | Описание |
+|--------|----------|---------|
+| `IGNORED_DIRS` | `{".git", "node_modules", "venv", "__pycache__", "dist", "build"}` | Директории, которые пропускаются при сборе файлов |
+| `SCANNED_EXTENSIONS` | `{".py", ".js", ".ts", ".java", ".env", ".json", ".yaml", ".yml", ".ini"}` | Расширения файлов для сканирования |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `collect_files()` | `root_path: Path` | `List[Path]` | Рекурсивно собирает все подходящие файлы в проекте |
+| `_is_in_ignored_dir()` | `path: Path` | `bool` | Проверяет, находится ли файл в игнорируемой директории |
+| `_is_scannable()` | `path: Path` | `bool` | Проверяет, подходит ли расширение файла для сканирования |
+
+#### ProjectDetector (`core/project_detector.py`)
+
+| Атрибут (класс) | Значение | Описание |
+|--------|----------|---------|
+| `MARKER_FILES` | `{"package.json", "requirements.txt", "Dockerfile", "pom.xml", "Makefile"}` | Файлы-маркеры наличия проекта |
+| `SOURCE_EXTENSIONS` | `{".py", ".js", ".ts", ".java", ".cpp"}` | Расширения исходного кода |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `is_project()` | `folder_path: Path` | `bool` | Определяет, является ли папка программным проектом |
+
+#### ContextAnalyzer (`core/context_analyzer.py`)
+
+| Атрибут (класс) | Значение | Описание |
+|--------|----------|---------|
+| `LOW_RISK_WORDS` | `{"test", "example", "dummy", "sample", "mock"}` | Слова, указывающие на тестовый контекст |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `analyze_context()` | `line: str` | `Dict[str, bool]` | Анализирует строку, определяет признаки контекста |
+| `adjust_risk()` | `risk_level: str, line: str` | `str` | Понижает уровень риска при комментариях или тестовом контексте |
+| `_is_comment_line()` | `line: str` | `bool` | Проверяет, является ли строка комментарием |
+
+#### EntropyCalculator (`core/entropy.py`)
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `calculate_entropy()` | `text: str` | `float` | Вычисляет энтропию Шеннона: H = -Σ p(x) * log₂(p(x)) |
+
+---
+
+### Детектация
+
+#### RegexDetector (`detectors/regex_detector.py`)
+
+| Атрибут (класс) | Описание |
+|--------|---------|
+| `ENV_REFERENCE_PATTERNS` | Набор паттернов для ссылок на переменные окружения (безопасные ссылки) |
+| `PLACEHOLDER_VALUE_RE` | Regex для тестовых плейсхолдеров (test, example, dummy и т.д.) |
+| `TS_TYPE_KEYWORDS` | Набор TypeScript типов (string, number, boolean и т.д.) |
+| `REFERENCE_VALUE_RE` | Regex для ссылок на поля объектов (user.password, data.secret) |
+| `FUNCTION_CALL_RE` | Regex для вызовов функций |
+| `SIMPLE_IDENTIFIER_RE` | Regex для простых идентификаторов переменных |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `detect()` | `line: str, file_path: str, line_number: int` | `List[LeakResult]` | Проверяет строку по всем regex-паттернам из `SECRET_PATTERNS` |
+| `_build_leak_result()` | `secret_name, risk, match, file_path, line_number` | `LeakResult \| None` | Формирует результат утечки и фильтрует безопасные случаи |
+| `_is_non_secret_value()` | `value, variable_name, secret_name, full_line` | `bool` | Определяет, является ли значение безопасным (тест, ссылка, плейсхолдер) |
+
+#### EntropyDetector (`detectors/entropy_detector.py`)
+
+| Атрибут (класс) | Значение | Описание |
+|--------|----------|---------|
+| `MIN_LENGTH` | `20` | Минимальная длина токена для анализа энтропии |
+| `MIN_ENTROPY` | `4.5` | Минимальный порог энтропии для обнаружения |
+| `TOKEN_PATTERN` | `r"[A-Za-z0-9_\-+/=]{20,}"` | Regex для поиска токенов |
+| `ENV_REFERENCE_RE` | - | Regex для исключения ссылок на переменные окружения |
+| `NON_SECRET_CONTEXT_WORDS` | `("integrity", "checksum", "sha256", "sha512", "md5")` | Слова, указывающие на хэши, а не на секреты |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `detect()` | `line: str, file_path: str, line_number: int` | `List[LeakResult]` | Ищет высокоэнтропийные токены в строке |
+
+---
+
+### LLM Интеграция
+
+#### OllamaClient (`llm/ollama_client.py`)
+
+| Атрибут (класс) | Значение | Описание |
+|--------|----------|---------|
+| `API_URL` | `"http://localhost:11434/api/generate"` | Адрес Ollama API |
+| `MODEL` | `"llama3.2"` | Используемая LLM модель |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `generate_recommendations()` | `leaks: Iterable[LeakResult]` | `str` | Генерирует текстовые рекомендации по исправлению утечек через LLM (или ошибку, если Ollama недоступна) |
+
+---
+
+### Экспорт отчетов
+
+#### ReportBuilder (`report/report_builder.py`)
+
+| Атрибут | Тип | Описание |
+|---------|-----|---------|
+| `ollama_client` | `OllamaClient \| None` | Инстанс для генерации LLM-рекомендаций |
+
+| Метод | Параметры | Возвращает | Описание |
+|--------|-----------|-----------|---------|
+| `build_report()` | `project_path: Path, leaks: Iterable[LeakResult], scanned_files: int` | `Dict` | Формирует полный словарь отчета с метаданными, статистикой и рекомендациями |
+
+Структура возвращаемого словаря:
+```python
+{
+    "project": {"path": str, "name": str},
+    "generated_at": str,  # ISO format timestamp
+    "statistics": {
+        "scanned_files": int,
+        "total_leaks": int,
+        "risk": {"high": int, "medium": int, "low": int}
+    },
+    "leaks": [LeakResult.to_dict(), ...],
+    "llm_recommendations": str
+}
+```
+
+#### JSONExporter, YAMLExporter, PDFExporter (`report/*.py`)
+
+| Метод | Параметры | Описание |
+|--------|-----------|---------|
+| `export()` | `report_data: Dict, output_path: Path` | Экспортирует отчет в соответствующий формат (JSON, YAML, PDF) |
+
+---
+
+## 4. Инструкция по запуску проекта
+
+### Требования к системе
+
+- **ОС**: Linux, macOS, Windows
+- **Python**: 3.12+
+- **Оперативная память**: 512 MB минимум
+- **Экран**: для GUI рекомендуется разрешение 1280x800 и выше
+
+
+### Локальный запуск
+
+#### Linux/macOS
+
+```bash
+# 1. Установить Python 3.12+
+python3 --version
+
+# 2. Клонировать репозиторий
+git clone <repo-url>
+cd leak-scanner
+
+# 3. Создать виртуальное окружение (опционально)
+python3 -m venv venv
+source venv/bin/activate
+
+# 4. Установить зависимости
+pip install PySide6 PyYAML requests reportlab
+
+# 5. Запустить приложение
+python main.py
+```
+
+#### Windows
+
+В папке dist/LeakScanner присутствует файл "LeakScanner.exe" для запуска приложения без использования консоли.
+
+Если же необходимо запустить через консоль, то выполнить следующие шаги:
+
+```cmd
+# 1. Установить Python 3.12+ с сайта python.org
+python --version
+
+# 2. Клонировать репозиторий
+git clone <repo-url>
+cd leak-scanner
+
+# 3. Создать виртуальное окружение
+python -m venv venv
+venv\Scripts\activate
+
+# 4. Установить зависимости
+pip install PySide6 PyYAML requests reportlab
+
+# 5. Запустить приложение
+python main.py
+```
+
+### Использование приложения
+
+1. **Выбор проекта**
+   - Нажмите кнопку "Выбрать папку"
+   - Укажите директорию проекта для сканирования
+
+2. **Сканирование**
+   - Нажмите "Сканировать"
+   - Приложение выполнит поиск утечек
+   - Результаты отобразятся в таблице ниже
+
+3. **Просмотр результатов**
+   - Таблица показывает: файл, строку, тип секрета, риск, фрагмент кода
+   - Двойной клик на результат может открыть файл в IDE (если поддерживается)
+
+4. **Создание отчета**
+   - Выберите формат отчета (PDF, JSON, YAML)
+   - Нажмите "Создать отчет"
+   - Отчет сохранится в текущую директорию
+
+### Интеграция с Ollama (опционально)
+
+Для получения AI-рекомендаций по исправлению утечек:
+
+1. **Установить Ollama**
+   - Скачать с https://ollama.ai
+   - Установить и запустить сервис
+
+2. **Загрузить модель**
+   ```bash
+   ollama pull llama3.2
+   ```
+
+3. **Убедиться, что Ollama работает**
+   ```bash
+   # Ollama должна быть доступна на http://localhost:11434
+   curl http://localhost:11434/api/tags
+   ```
+
+4. **Запустить Leak Scanner**
+   - При создании отчета приложение автоматически попытается подключиться к Ollama
+   - Если Ollama недоступна, отчет будет создан без LLM-рекомендаций
+
+### Возможные проблемы и решения
+
+| Проблема | Решение |
+|----------|---------|
+| `ImportError: cannot import PySide6` | Установите: `pip install PySide6` |
+| `ModuleNotFoundError: yaml` | Установите: `pip install PyYAML` |
+| `"Could not load the Qt platform plugin"` | Переустановите системные библиотеки (см. выше) или используйте Windows/Linux с поддержкой X11 |
+| Ollama недоступна при создании отчета | Убедитесь, что Ollama запущена на `http://localhost:11434` |
+| Отчет не создается | Проверьте права доступа на запись в текущую директорию |
+
+### Структура выходных файлов
+
+После сканирования в текущей директории могут быть созданы файлы:
+
+- `scan_report_YYYY-MM-DD_HH-MM-SS.pdf` — отчет в формате PDF
+- `scan_report_YYYY-MM-DD_HH-MM-SS.json` — отчет в формате JSON
+- `scan_report_YYYY-MM-DD_HH-MM-SS.yaml` — отчет в формате YAML
+
+Каждый отчет содержит:
+- Информацию о проекте (путь, имя)
+- Статистику (количество файлов, утечек, распределение по рискам)
+- Полный список найденных утечек
+- Рекомендации от LLM (если Ollama доступна)
+
+---
+
+## 5. Дополнительная информация
+
+### Поддерживаемые типы секретов
+
+- Пароли
+- AWS Access Keys
+- GitHub Tokens
+- RSA Private Keys
+- JWT Secrets
+- API Keys
+- Database Credentials
+- OAuth Tokens
+- SSH Private Keys
+- Encryption Keys
+- Bearer Tokens
+- Connection Strings
+- High Entropy Strings (энтропийные строки)
+
+### Правила фильтрации ложных срабатываний
+
+Приложение автоматически исключает:
+- Ссылки на переменные окружения (`$VAR`, `${VAR}`)
+- Тестовые плейсхолдеры (`test`, `example`, `dummy`)
+- Типы данных (TypeScript: `string`, `number`)
+- Комментарии
+- Вызовы функций

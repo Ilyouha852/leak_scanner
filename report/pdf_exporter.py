@@ -1,5 +1,3 @@
-﻿"""Экспорт отчета в PDF-формат."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -25,13 +23,10 @@ BOLD_FONT = "Arial-Bold"
 
 
 class PDFExporter:
-    """Создает PDF-отчет на основе структуры report_data."""
 
     def export(self, report_data: dict, output_path: Path) -> None:
-        """Сохраняет PDF файл отчета."""
         output_path.parent.mkdir(parents=True, exist_ok=True)
 
-        # Альбомная ориентация для вмещения широкой таблицы
         doc = SimpleDocTemplate(
             str(output_path),
             pagesize=landscape(A4),
@@ -41,7 +36,6 @@ class PDFExporter:
             bottomMargin=15 * mm,
         )
 
-        # Кастомные стили с поддержкой кириллицы
         styles = {
             "title": ParagraphStyle(
                 "Title",
@@ -72,10 +66,8 @@ class PDFExporter:
 
         story = []
 
-        # Заголовок
         story.append(Paragraph("Отчет о найденных утечках в коде", styles["title"]))
 
-        # Информация о проекте
         project = report_data.get("project", {})
         stats = report_data.get("statistics", {})
         risk = stats.get("risk", {})
@@ -85,7 +77,6 @@ class PDFExporter:
         story.append(Paragraph(f"Дата генерации отчета: {report_data.get('generated_at', '')}", styles["normal"]))
         story.append(Spacer(1, 4 * mm))
 
-        # Статистика
         story.append(Paragraph("Статистика", styles["heading2"]))
         story.append(
             Paragraph(
@@ -112,7 +103,6 @@ class PDFExporter:
         )
         story.append(Spacer(1, 6 * mm))
 
-        # Таблица утечек
         story.append(Paragraph("Найденные утечки", styles["heading2"]))
         table_data = [
             [
@@ -137,23 +127,22 @@ class PDFExporter:
                 ]
             )
 
-        # Настройка таблицы с учётом ширины страницы в альбомной ориентации
         page_width = landscape(A4)[0] - 20 * mm
         col_widths = [
-            page_width * 0.25,  # File
-            page_width * 0.05,  # Line
-            page_width * 0.15,  # Type
-            page_width * 0.08,  # Risk
-            page_width * 0.10,  # Detector
-            page_width * 0.37,  # Fragment
+            page_width * 0.25,
+            page_width * 0.05,
+            page_width * 0.15,
+            page_width * 0.08,
+            page_width * 0.10,
+            page_width * 0.37,
         ]
 
         table = Table(table_data, repeatRows=1, colWidths=col_widths)
         table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.8, 0.85, 0.9)),  # Светло-голубой
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),  # Черный текст
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.8, 0.85, 0.9)),
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),
                     ("FONTNAME", (0, 0), (-1, 0), BOLD_FONT),
                     ("FONTSIZE", (0, 0), (-1, -1), 8),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -167,11 +156,9 @@ class PDFExporter:
         story.append(table)
         story.append(Spacer(1, 6 * mm))
 
-        # Рекомендации LLM
         story.append(Paragraph("Рекомандации по исправлению от LLM", styles["heading2"]))
         rec_text = str(report_data.get("llm_recommendations", ""))
         if rec_text:
-            # Разбиваем длинный текст на абзацы
             for para in rec_text.split("\n\n"):
                 if para.strip():
                     story.append(Paragraph(para.replace("\n", "<br/>"), styles["normal"]))

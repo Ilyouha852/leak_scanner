@@ -1,5 +1,3 @@
-"""Сборка структуры отчета по результатам сканирования."""
-
 from __future__ import annotations
 
 from datetime import datetime, timezone
@@ -11,7 +9,6 @@ from models.leak_result import LeakResult
 
 
 class ReportBuilder:
-    """Формирует единый словарь отчета для разных экспортеров."""
 
     def __init__(self, ollama_client: OllamaClient | None = None) -> None:
         self.ollama_client = ollama_client or OllamaClient()
@@ -22,7 +19,7 @@ class ReportBuilder:
         leaks: Iterable[LeakResult],
         scanned_files: int,
     ) -> dict:
-        """Возвращает структуру отчета с метаданными, статистикой и рекомендациями."""
+
         leak_list = list(leaks)
 
         risk_stats = {

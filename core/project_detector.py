@@ -1,12 +1,9 @@
-"""Модуль для определения, является ли папка программным проектом."""
-
 from __future__ import annotations
 
 from pathlib import Path
 
 
 class ProjectDetector:
-    """Определяет, содержит ли директория признаки программного проекта."""
 
     MARKER_FILES = {
         "package.json",
@@ -18,7 +15,6 @@ class ProjectDetector:
     SOURCE_EXTENSIONS = {".py", ".js", ".ts", ".java", ".cpp"}
 
     def is_project(self, folder_path: Path) -> bool:
-        """Проверяет папку по маркерным файлам и количеству исходников."""
         if not folder_path.exists() or not folder_path.is_dir():
             return False
 

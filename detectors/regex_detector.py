@@ -1,5 +1,3 @@
-"""Regex-детектор известных типов секретов."""
-
 from __future__ import annotations
 
 import re
@@ -9,9 +7,7 @@ from models.leak_result import LeakResult
 
 
 class RegexDetector:
-    """Проверяет строку по набору регулярных выражений."""
 
-    # Безопасные ссылки на переменные окружения/конфиг — это не утечка значения.
     ENV_REFERENCE_PATTERNS = (
         re.compile(r"^\$[A-Za-z_][A-Za-z0-9_]*$"),
         re.compile(r"^\$\{[A-Za-z_][A-Za-z0-9_]*\}$"),
@@ -19,7 +15,6 @@ class RegexDetector:
         re.compile(r"^os\.getenv\(['\"][A-Za-z_][A-Za-z0-9_]*['\"]\)$"),
     )
 
-    # Типичные технические/тестовые значения вместо настоящего секрета.
     PLACEHOLDER_VALUE_RE = re.compile(
         r"(?i)^(?:"
         r"hashed[-_ ]?password|"
@@ -81,13 +76,11 @@ class RegexDetector:
         file_path: str,
         line_number: int,
     ) -> LeakResult | None:
-        """Строит LeakResult и отфильтровывает безопасные случаи."""
+
         full_fragment = match.group(0).strip()
         if not full_fragment:
             return None
 
-        # Для assignment-паттернов сохраняем левую часть (имя переменной)
-        # и правую часть (значение), чтобы результат был корректным.
         if match.lastindex and match.lastindex >= 2:
             variable_name = (match.group(1) or "").strip()
             value = (match.group(2) or "").strip().rstrip(",;")
@@ -122,44 +115,35 @@ class RegexDetector:
         secret_name: str,
         full_line: str | None = None,
     ) -> bool:
-        """Отсекает значения, которые являются ссылками/типами, а не секретами."""
         normalized = value.strip().strip("'\"")
         lowered = normalized.lower()
         variable_lower = variable_name.lower()
         line = (full_line or "").strip()
 
-        # GitHub Actions / CI placeholders: ${{ secrets.JWT_SECRET }}
         if "${{" in line and "secrets." in line and "}}" in line:
             return True
 
-        # Обрезанный хвост placeholder-а, который мог попасть в regex.
         if normalized.startswith("${{") or normalized.startswith("${"):
             return True
 
         if any(pattern.fullmatch(normalized) for pattern in self.ENV_REFERENCE_PATTERNS):
             return True
 
-        # Пароли в hashed-полях не считаем утечкой plaintext-секрета.
         if secret_name == "Password" and "hashed" in variable_lower:
             return True
 
-        # Явные плейсхолдеры вместо реального секрета.
         if self.PLACEHOLDER_VALUE_RE.fullmatch(lowered):
             return True
 
-        # TypeScript-аннотации и объявления полей.
         if lowered in self.TS_TYPE_KEYWORDS:
             return True
 
-        # Ссылки на поля объектов: user.password, data.secret ?? existing.secret.
         if self.REFERENCE_VALUE_RE.fullmatch(normalized):
             return True
 
-        # Выражения/вызовы функций, например faker.string.uuid().
         if self.FUNCTION_CALL_RE.fullmatch(normalized):
             return True
 
-        # Простые идентификаторы (переменная/константа), а не литерал-секрет.
         if self.SIMPLE_IDENTIFIER_RE.fullmatch(normalized):
             return True
 

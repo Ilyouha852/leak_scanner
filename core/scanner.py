@@ -1,5 +1,3 @@
-"""Главный модуль сканирования проекта."""
-
 from __future__ import annotations
 
 from pathlib import Path
@@ -11,9 +9,7 @@ from detectors.entropy_detector import EntropyDetector
 from detectors.regex_detector import RegexDetector
 from models.leak_result import LeakResult
 
-
 class Scanner:
-    """Оркестратор сканирования файлов с запуском всех детекторов."""
 
     def __init__(self) -> None:
         self.file_collector = FileCollector()
@@ -26,7 +22,7 @@ class Scanner:
         project_path: Path,
         progress_callback: Callable[[int, int, str], None] | None = None,
     ) -> tuple[list[LeakResult], int]:
-        """Сканирует проект и возвращает (утечки, число просканированных файлов)."""
+
         files = self.file_collector.collect_files(project_path)
         total = len(files)
         results: list[LeakResult] = []
@@ -39,7 +35,6 @@ class Scanner:
         return self._deduplicate(results), total
 
     def scan_file(self, file_path: Path) -> list[LeakResult]:
-        """Сканирует файл построчно и применяет детекторы."""
         findings: list[LeakResult] = []
 
         try:
@@ -75,7 +70,7 @@ class Scanner:
         regex_hits: list[LeakResult],
         entropy_hits: list[LeakResult],
     ) -> list[LeakResult]:
-        """Удаляет entropy-находки, которые дублируют или пересекают regex-находки."""
+        
         if not regex_hits:
             return entropy_hits
 
@@ -95,7 +90,6 @@ class Scanner:
 
     @staticmethod
     def _deduplicate(results: list[LeakResult]) -> list[LeakResult]:
-        """Удаляет дубликаты результатов между детекторами."""
         seen: set[tuple[str, int, str, str]] = set()
         unique: list[LeakResult] = []
 

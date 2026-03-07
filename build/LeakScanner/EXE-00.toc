@@ -73,7 +73,7 @@
  [],
  False,
  False,
- 1772900091,
+ 1772906398,
  [('runw.exe',
    'C:\\Users\\ILYOUSHA\\miniconda3\\Lib\\site-packages\\PyInstaller\\bootloader\\Windows-64bit-intel\\runw.exe',
    'EXECUTABLE')],

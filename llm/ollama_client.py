@@ -1,5 +1,3 @@
-"""Клиент для локального Ollama API."""
-
 from __future__ import annotations
 
 from typing import Iterable
@@ -10,13 +8,11 @@ from models.leak_result import LeakResult
 
 
 class OllamaClient:
-    """Обертка для генерации рекомендаций через локальную LLM Ollama."""
 
     API_URL = "http://localhost:11434/api/generate"
     MODEL = "llama3.2"
 
     def generate_recommendations(self, leaks: Iterable[LeakResult]) -> str:
-        """Генерирует рекомендации по списку найденных утечек."""
         leaks_list = list(leaks)
         if not leaks_list:
             return "Утечки не обнаружены. Рекомендации не требуются."

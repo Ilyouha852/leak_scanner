@@ -1,5 +1,3 @@
-"""Главное окно приложения Leak Scanner."""
-
 from __future__ import annotations
 
 from datetime import datetime
@@ -28,7 +26,6 @@ from ui.scan_view import ScanView
 
 
 class MainWindow(QMainWindow):
-    """Главное окно с управлением сканированием и экспортом отчётов."""
 
     def __init__(self) -> None:
         super().__init__()
@@ -79,7 +76,6 @@ class MainWindow(QMainWindow):
         layout.addWidget(self.scan_view)
 
     def select_folder(self) -> None:
-        """Открывает диалог выбора директории проекта."""
         selected = QFileDialog.getExistingDirectory(self, "Выберите папку проекта")
         if not selected:
             return
@@ -89,7 +85,6 @@ class MainWindow(QMainWindow):
         self.scan_view.append_log(f"Выбрана папка: {self.selected_folder}")
 
     def start_scan(self) -> None:
-        """Запускает проверку и сканирование выбранной папки."""
         if self.selected_folder is None:
             QMessageBox.warning(self, "Leak Scanner", "Сначала выберите папку проекта.")
             return
@@ -122,7 +117,7 @@ class MainWindow(QMainWindow):
             self.scan_view.append_log(
                 f"Сканирование завершено. Найдено {len(leaks)} потенциальных утечек."
             )
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             QMessageBox.critical(self, "Ошибка сканирования", str(exc))
             self.scan_view.append_log(f"Ошибка: {exc}")
         finally:
@@ -131,13 +126,11 @@ class MainWindow(QMainWindow):
             self.scan_view.set_progress(100)
 
     def _on_scan_progress(self, current: int, total: int, file_path: str) -> None:
-        """Колбэк прогресса сканирования."""
         percent = int((current / total) * 100) if total else 100
         self.scan_view.set_progress(percent)
         self.scan_view.append_log(f"[{current}/{total}] {file_path}")
 
     def create_report(self) -> None:
-        """Создает и экспортирует отчет в выбранном формате."""
         if self.selected_folder is None or not self.last_scan_results:
             QMessageBox.information(
                 self,
@@ -179,6 +172,6 @@ class MainWindow(QMainWindow):
             self.scan_view.append_log(f"Отчет сохранен: {export_path}")
             QMessageBox.information(self, "Leak Scanner", f"Отчет сохранен:\n{export_path}")
 
-        except Exception as exc:  # noqa: BLE001
+        except Exception as exc:
             QMessageBox.critical(self, "Ошибка экспорта", str(exc))
             self.scan_view.append_log(f"Ошибка экспорта: {exc}")
