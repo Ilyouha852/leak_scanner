@@ -6,6 +6,7 @@ from datetime import datetime
 from pathlib import Path
 
 from PySide6.QtWidgets import (
+    QComboBox,
     QFileDialog,
     QHBoxLayout,
     QLineEdit,
@@ -58,6 +59,9 @@ class MainWindow(QMainWindow):
         self.select_button = QPushButton("Выбрать папку")
         self.scan_button = QPushButton("Сканировать")
         self.report_button = QPushButton("Создать отчет")
+        self.format_combo = QComboBox()
+        self.format_combo.addItems(["PDF", "JSON", "YAML"])
+        self.format_combo.setFixedWidth(100)
 
         self.select_button.clicked.connect(self.select_folder)
         self.scan_button.clicked.connect(self.start_scan)
@@ -67,6 +71,7 @@ class MainWindow(QMainWindow):
         top_row.addWidget(self.select_button)
         top_row.addWidget(self.scan_button)
         top_row.addWidget(self.report_button)
+        top_row.addWidget(self.format_combo)
 
         self.scan_view = ScanView(self)
 
@@ -147,33 +152,33 @@ class MainWindow(QMainWindow):
             scanned_files=self.last_scanned_files,
         )
 
-        export_path_str, selected_filter = QFileDialog.getSaveFileName(
+        selected_format = self.format_combo.currentText()
+        extension = ".pdf" if selected_format == "PDF" else f".{selected_format.lower()}"
+
+        export_path_str, _ = QFileDialog.getSaveFileName(
             self,
             "Сохранить отчет",
-            f"leak_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}",
-            "PDF (*.pdf);;JSON (*.json);;YAML (*.yaml)",
+            f"leak_report_{datetime.now().strftime('%Y%m%d_%H%M%S')}{extension}",
+            f"{selected_format} (*{extension})",
         )
         if not export_path_str:
             return
 
         export_path = Path(export_path_str)
+        if export_path.suffix.lower() != extension:
+            export_path = export_path.with_suffix(extension)
+
         try:
-            if "PDF" in selected_filter or export_path.suffix.lower() == ".pdf":
-                if export_path.suffix.lower() != ".pdf":
-                    export_path = export_path.with_suffix(".pdf")
+            if selected_format == "PDF":
                 PDFExporter().export(report_data, export_path)
-            elif "JSON" in selected_filter or export_path.suffix.lower() == ".json":
-                if export_path.suffix.lower() != ".json":
-                    export_path = export_path.with_suffix(".json")
+            elif selected_format == "JSON":
                 JSONExporter().export(report_data, export_path)
             else:
-                if export_path.suffix.lower() not in {".yaml", ".yml"}:
-                    export_path = export_path.with_suffix(".yaml")
                 YAMLExporter().export(report_data, export_path)
 
             self.scan_view.append_log(f"Отчет сохранен: {export_path}")
             QMessageBox.information(self, "Leak Scanner", f"Отчет сохранен:\n{export_path}")
-        
+
         except Exception as exc:  # noqa: BLE001
             QMessageBox.critical(self, "Ошибка экспорта", str(exc))
             self.scan_view.append_log(f"Ошибка экспорта: {exc}")
