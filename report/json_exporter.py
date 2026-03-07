@@ -1,4 +1,4 @@
-﻿"""Экспорт отчета в JSON."""
+"""Экспорт отчета в JSON."""
 
 from __future__ import annotations
 

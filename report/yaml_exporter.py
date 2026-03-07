@@ -1,4 +1,4 @@
-﻿"""Экспорт отчета в YAML."""
+"""Экспорт отчета в YAML."""
 
 from __future__ import annotations
 

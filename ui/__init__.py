@@ -1,1 +1,1 @@
-﻿"""UI package Leak Scanner."""
+"""UI package Leak Scanner."""

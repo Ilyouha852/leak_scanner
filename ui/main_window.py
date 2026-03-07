@@ -1,4 +1,4 @@
-﻿"""Главное окно приложения Leak Scanner."""
+"""Главное окно приложения Leak Scanner."""
 
 from __future__ import annotations
 
@@ -117,7 +117,7 @@ class MainWindow(QMainWindow):
             self.last_scan_results = leaks
             self.last_scanned_files = scanned_files
 
-            self.scan_view.display_results(leaks)
+            self.scan_view.display_results(leaks, project_path=str(self.selected_folder))
             self.scan_view.set_statistics(scanned_files=scanned_files, leaks_count=len(leaks))
             self.scan_view.append_log(
                 f"Сканирование завершено. Найдено {len(leaks)} потенциальных утечек."

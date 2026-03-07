@@ -1,4 +1,4 @@
-﻿"""Точка входа приложения Leak Scanner."""
+"""Точка входа приложения Leak Scanner."""
 
 from __future__ import annotations
 
