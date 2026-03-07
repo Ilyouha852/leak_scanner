@@ -35,7 +35,7 @@
 
 UML диаграмма классов
 
-![UML Diagram](https://raw.githubusercontent.com/Ilyouha852/leak_scanner/main/media/uml_diagram.png)
+![UML Diagram](https://raw.githubusercontent.com/Ilyouha852/leak_scanner/main/media/uml.png)
 
 ### Архитектурные слои
 
