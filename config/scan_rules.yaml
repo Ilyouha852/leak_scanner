@@ -1,0 +1,29 @@
+# Пользовательские правила для поиска секретов
+rules:
+  - name: "My Custom API Key"
+    pattern: "CUSTOM_KEY_[A-Z0-9]{32}"
+    risk: "high"
+    type: "custom_api"
+    description: "Уникальный ключ для нашего внутреннего API"
+
+  - name: "Test Password"
+    pattern: "testpass[0-9]{6}"
+    risk: "low"
+    type: "test_credential"
+    description: "Тестовый пароль (низкий риск, но лучше не оставлять)"
+
+  - name: "JWT Token"
+    pattern: "eyJ[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+\\.[a-zA-Z0-9_-]+"
+    risk: "high"
+    type: "jwt"
+    description: "JSON Web Token"
+
+# Папки/файлы для исключения из сканирования (поддерживаются wildcard *)
+exclude:
+  - "node_modules"
+  - ".git"
+  - "*.pyc"
+  - "__pycache__"
+  - "venv"
+  - "dist"
+  - "build"
