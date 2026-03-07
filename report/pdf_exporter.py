@@ -1,4 +1,4 @@
-"""Экспорт отчета в PDF-формат."""
+﻿"""Экспорт отчета в PDF-формат."""
 
 from __future__ import annotations
 
@@ -73,39 +73,39 @@ class PDFExporter:
         story = []
 
         # Заголовок
-        story.append(Paragraph("Leak Scanner Report", styles["title"]))
+        story.append(Paragraph("Отчет о найденных утечках в коде", styles["title"]))
 
         # Информация о проекте
         project = report_data.get("project", {})
         stats = report_data.get("statistics", {})
         risk = stats.get("risk", {})
 
-        story.append(Paragraph(f"Project: {project.get('name', '')}", styles["normal"]))
-        story.append(Paragraph(f"Path: {project.get('path', '')}", styles["normal"]))
-        story.append(Paragraph(f"Generated at: {report_data.get('generated_at', '')}", styles["normal"]))
+        story.append(Paragraph(f"Проект: {project.get('name', '')}", styles["normal"]))
+        story.append(Paragraph(f"Путь: {project.get('path', '')}", styles["normal"]))
+        story.append(Paragraph(f"Дата генерации отчета: {report_data.get('generated_at', '')}", styles["normal"]))
         story.append(Spacer(1, 4 * mm))
 
         # Статистика
-        story.append(Paragraph("Statistics", styles["heading2"]))
+        story.append(Paragraph("Статистика", styles["heading2"]))
         story.append(
             Paragraph(
-                f"Scanned files: {stats.get('scanned_files', 0)}",
+                f"Отсканировано файлов: {stats.get('scanned_files', 0)}",
                 styles["normal"],
             )
         )
         story.append(
             Paragraph(
-                f"Total leaks: {stats.get('total_leaks', 0)}",
+                f"Количество утечек: {stats.get('total_leaks', 0)}",
                 styles["normal"],
             )
         )
         story.append(
             Paragraph(
                 (
-                    "Risk levels — "
-                    f"high: {risk.get('high', 0)}, "
-                    f"medium: {risk.get('medium', 0)}, "
-                    f"low: {risk.get('low', 0)}"
+                    "Уровни риска утечек — "
+                    f"Высокий уровень риска: {risk.get('high', 0)}, "
+                    f"Средний уровень риска: {risk.get('medium', 0)}, "
+                    f"Низкий уровень риска: {risk.get('low', 0)}"
                 ),
                 styles["normal"],
             )
@@ -113,15 +113,15 @@ class PDFExporter:
         story.append(Spacer(1, 6 * mm))
 
         # Таблица утечек
-        story.append(Paragraph("Detected leaks", styles["heading2"]))
+        story.append(Paragraph("Найденные утечки", styles["heading2"]))
         table_data = [
             [
-                Paragraph("File", styles["normal_bold"]),
-                Paragraph("Line", styles["normal_bold"]),
-                Paragraph("Type", styles["normal_bold"]),
-                Paragraph("Risk", styles["normal_bold"]),
-                Paragraph("Detector", styles["normal_bold"]),
-                Paragraph("Fragment", styles["normal_bold"]),
+                Paragraph("Файл", styles["normal_bold"]),
+                Paragraph("Строка", styles["normal_bold"]),
+                Paragraph("Тип", styles["normal_bold"]),
+                Paragraph("Риск", styles["normal_bold"]),
+                Paragraph("Метод проверки", styles["normal_bold"]),
+                Paragraph("Фрагмент", styles["normal_bold"]),
             ]
         ]
 
@@ -152,8 +152,8 @@ class PDFExporter:
         table.setStyle(
             TableStyle(
                 [
-                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.2, 0.3, 0.5)),
-                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.whitesmoke),
+                    ("BACKGROUND", (0, 0), (-1, 0), colors.Color(0.8, 0.85, 0.9)),  # Светло-голубой
+                    ("TEXTCOLOR", (0, 0), (-1, 0), colors.black),  # Черный текст
                     ("FONTNAME", (0, 0), (-1, 0), BOLD_FONT),
                     ("FONTSIZE", (0, 0), (-1, -1), 8),
                     ("GRID", (0, 0), (-1, -1), 0.5, colors.grey),
@@ -168,7 +168,7 @@ class PDFExporter:
         story.append(Spacer(1, 6 * mm))
 
         # Рекомендации LLM
-        story.append(Paragraph("LLM recommendations", styles["heading2"]))
+        story.append(Paragraph("Рекомандации по исправлению от LLM", styles["heading2"]))
         rec_text = str(report_data.get("llm_recommendations", ""))
         if rec_text:
             # Разбиваем длинный текст на абзацы
@@ -177,6 +177,6 @@ class PDFExporter:
                     story.append(Paragraph(para.replace("\n", "<br/>"), styles["normal"]))
                     story.append(Spacer(1, 3 * mm))
         else:
-            story.append(Paragraph("No recommendations available.", styles["normal"]))
+            story.append(Paragraph("Рекомендации недоступны.", styles["normal"]))
 
         doc.build(story)
